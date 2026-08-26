@@ -17,6 +17,8 @@
   <string>/Users/kevin/Documents/Codex/2026-08-26/referenced-chatgpt-conversation-this-is-an</string>
   <key>EnvironmentVariables</key>
   <dict>
+    <key>CODEX_HOME</key>
+    <string>/Users/kevin/.codex</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>

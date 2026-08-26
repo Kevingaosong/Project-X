@@ -121,7 +121,10 @@ class CodexCliExecutor:
         stderr = _safe_output(completed.stderr)
         artifacts = (
             GeneratedArtifact("codex-final.md", stdout or "Codex returned no final message.\n"),
-            GeneratedArtifact("codex-events.log", stderr),
+            GeneratedArtifact(
+                "codex-events.log",
+                stderr or "Codex CLI produced no diagnostic output.\n",
+            ),
         )
         if completed.returncode != 0:
             return ExecutionOutcome(
