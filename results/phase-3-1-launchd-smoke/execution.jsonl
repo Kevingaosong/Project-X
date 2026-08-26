@@ -8,3 +8,8 @@
 {"adapter": "codex-cli", "event": "executor.started", "timestamp": "2026-08-26T10:45:52.738436+00:00"}
 {"event": "executor.failed", "status": "failed", "timestamp": "2026-08-26T10:45:52.770115+00:00"}
 {"adapter": "validated-git-queue", "event": "publisher.completed", "pushed": false, "status": "queued", "timestamp": "2026-08-26T10:45:52.770486+00:00"}
+{"event": "task.discovered", "risk_level": "low", "task_hash": "bd3c93916d9d330375d511eceb76da6f8e630bc316d3fd1d3b88b46e6015406d", "timestamp": "2026-08-26T10:47:28.588890+00:00"}
+{"allowed": true, "code": "risk_level_allowed", "event": "policy.evaluated", "timestamp": "2026-08-26T10:47:28.589358+00:00"}
+{"adapter": "codex-cli", "event": "executor.started", "timestamp": "2026-08-26T10:47:28.589541+00:00"}
+{"event": "executor.failed", "status": "failed", "timestamp": "2026-08-26T10:47:28.618071+00:00"}
+{"adapter": "validated-git-queue", "event": "publisher.completed", "pushed": false, "status": "queued", "timestamp": "2026-08-26T10:47:28.618273+00:00"}

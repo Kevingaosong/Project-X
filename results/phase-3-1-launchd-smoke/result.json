@@ -6,7 +6,7 @@
   "execution_mode": "analysis",
   "executor": "codex-cli",
   "executor_is_mock": false,
-  "finished_at": "2026-08-26T10:45:52.769186+00:00",
+  "finished_at": "2026-08-26T10:47:28.617382+00:00",
   "policy": {
     "allowed": true,
     "code": "risk_level_allowed",
@@ -16,10 +16,10 @@
   "publisher_is_mock": false,
   "risk_level": "low",
   "schema_version": 1,
-  "started_at": "2026-08-26T10:45:52.736328+00:00",
+  "started_at": "2026-08-26T10:47:28.588329+00:00",
   "status": "failed",
   "summary": "Codex CLI exited with status 2.",
-  "task_hash": "97cc295906a3288c677f1af1444597d1e80bde0a5b87f76fb2d3ad955aac7975",
+  "task_hash": "bd3c93916d9d330375d511eceb76da6f8e630bc316d3fd1d3b88b46e6015406d",
   "task_id": "phase-3-1-launchd-smoke",
   "write_paths": []
 }
