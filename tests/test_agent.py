@@ -119,30 +119,47 @@ class ProjectXAgentTests(unittest.TestCase):
         )
         self.assertIn("must include a timezone", invalid["error"])
 
-    def test_non_mock_adapter_is_rejected(self) -> None:
-        class UnsafeExecutor:
-            name = "unsafe"
-            is_mock = False
+    def test_workspace_write_requires_explicit_safe_paths(self) -> None:
+        task = self._task(risk_level="medium")
+        task["execution"] = {"mode": "workspace-write", "write_paths": []}
+        self._write_task("missing-scope.json", task)
 
-        with self.assertRaisesRegex(ValueError, "mock executor"):
-            ProjectXAgent(
-                tasks_dir=self.tasks,
-                results_dir=self.results,
-                executor=UnsafeExecutor(),
-                publisher=MockGitPublisher(),
-            )
+        summary = self.agent.scan_once()
 
-        class UnsafePublisher:
-            name = "unsafe-git"
-            is_mock = False
+        self.assertEqual(summary.invalid, 1)
+        invalid = json.loads(
+            (self.results / "_invalid" / "missing-scope.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("require at least one", invalid["error"])
 
-        with self.assertRaisesRegex(ValueError, "mock executor and publisher"):
-            ProjectXAgent(
-                tasks_dir=self.tasks,
-                results_dir=self.results,
-                executor=MockCodexExecutor(),
-                publisher=UnsafePublisher(),
-            )
+    def test_control_plane_write_path_is_rejected(self) -> None:
+        task = self._task(risk_level="medium")
+        task["execution"] = {
+            "mode": "workspace-write",
+            "write_paths": ["src/project_x_agent/worker.py"],
+        }
+        self._write_task("protected.json", task)
+
+        summary = self.agent.scan_once()
+
+        self.assertEqual(summary.invalid, 1)
+        invalid = json.loads(
+            (self.results / "_invalid" / "protected.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("write path is protected", invalid["error"])
+
+    def test_scan_once_limits_new_work(self) -> None:
+        first = self._task()
+        second = self._task()
+        second["id"] = "test-task-002"
+        self._write_task("a.json", first)
+        self._write_task("b.json", second)
+
+        summary = self.agent.scan_once(max_tasks=1)
+
+        self.assertEqual(summary.completed, 1)
+        self.assertEqual(summary.task_ids, ("test-task-001",))
+        self.assertFalse((self.results / "test-task-002").exists())
 
     def _task(self, *, risk_level: str = "low") -> dict[str, object]:
         return {

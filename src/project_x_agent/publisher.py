@@ -48,3 +48,26 @@ class MockGitPublisher:
             pushed=False,
             detail="No git command was executed and no remote was changed.",
         )
+
+
+class QueuedGitPublisher:
+    """Declare publication intent; the outer worker performs validated Git publication."""
+
+    name = "validated-git-queue"
+    is_mock = False
+
+    def publish(
+        self,
+        *,
+        task_id: str,
+        commit_message: str,
+        paths: Sequence[Path],
+    ) -> PublicationReceipt:
+        del task_id, paths
+        return PublicationReceipt(
+            status="queued",
+            adapter=self.name,
+            commit_message=commit_message,
+            pushed=False,
+            detail="The outer worker will validate paths, scan for secrets, commit, push, and verify.",
+        )

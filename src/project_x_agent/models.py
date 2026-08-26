@@ -42,6 +42,26 @@ class RiskLevel(StrEnum):
     CRITICAL = "critical"
 
 
+class ExecutionMode(StrEnum):
+    ANALYSIS = "analysis"
+    WORKSPACE_WRITE = "workspace-write"
+
+
+PROTECTED_WRITE_PREFIXES = (
+    ".git",
+    ".github",
+    ".codex",
+    ".ssh",
+    "tasks",
+    "results",
+    "work",
+    "scripts",
+    "tests",
+    "src/project_x_agent",
+)
+PROTECTED_WRITE_FILES = {".gitignore", "pyproject.toml"}
+
+
 @dataclass(frozen=True)
 class Authorization:
     execute: bool = False
@@ -55,6 +75,38 @@ class Authorization:
 
 
 @dataclass(frozen=True)
+class ExecutionSpec:
+    mode: ExecutionMode = ExecutionMode.ANALYSIS
+    write_paths: tuple[str, ...] = ()
+
+    @classmethod
+    def from_dict(cls, payload: Any) -> "ExecutionSpec":
+        if payload is None:
+            return cls()
+        if not isinstance(payload, dict):
+            raise TaskValidationError("execution must be an object")
+        try:
+            mode = ExecutionMode(payload.get("mode", "analysis"))
+        except ValueError as exc:
+            raise TaskValidationError(
+                "execution.mode must be analysis or workspace-write"
+            ) from exc
+        raw_paths = payload.get("write_paths", [])
+        if not isinstance(raw_paths, list) or not all(
+            isinstance(item, str) and item.strip() for item in raw_paths
+        ):
+            raise TaskValidationError("execution.write_paths must be a list of paths")
+        paths = tuple(_validate_write_path(item.strip()) for item in raw_paths)
+        if mode is ExecutionMode.WORKSPACE_WRITE and not paths:
+            raise TaskValidationError(
+                "workspace-write tasks require at least one execution.write_paths entry"
+            )
+        if mode is ExecutionMode.ANALYSIS and paths:
+            raise TaskValidationError("analysis tasks cannot declare write_paths")
+        return cls(mode=mode, write_paths=paths)
+
+
+@dataclass(frozen=True)
 class Task:
     schema_version: int
     id: str
@@ -63,6 +115,7 @@ class Task:
     risk_level: RiskLevel
     created_at: str
     authorization: Authorization = field(default_factory=Authorization)
+    execution: ExecutionSpec = field(default_factory=ExecutionSpec)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -112,6 +165,7 @@ class Task:
             risk_level=risk_level,
             created_at=created_at,
             authorization=authorization,
+            execution=ExecutionSpec.from_dict(payload.get("execution")),
             metadata=raw_metadata,
         )
 
@@ -202,3 +256,16 @@ def _reject_sensitive_keys(value: Any, path: tuple[str, ...] = ()) -> None:
                 raise TaskValidationError(
                     f"inline sensitive value is forbidden at {location}; use a future secret reference adapter"
                 )
+
+
+def _validate_write_path(value: str) -> str:
+    path = Path(value)
+    if path.is_absolute() or not path.parts or ".." in path.parts:
+        raise TaskValidationError("write_paths must be repository-relative without '..'")
+    normalized = path.as_posix().rstrip("/")
+    if normalized in PROTECTED_WRITE_FILES or any(
+        normalized == prefix or normalized.startswith(prefix + "/")
+        for prefix in PROTECTED_WRITE_PREFIXES
+    ):
+        raise TaskValidationError(f"write path is protected: {normalized}")
+    return normalized

@@ -1,5 +1,7 @@
 # Project X
 
+Phase 3.1 uses GitHub as the task inbox. The Mac mini checks `tasks/` every 60 seconds, runs at most one new task in an isolated Codex worktree, records evidence in `results/`, and publishes only validated paths. See `tasks/README.md` for the task format and `docs/project-x-agent-architecture.md` for safety boundaries.
+
 Project X turns this Mac mini into a maintainable, auditable long-running work node operated by Codex.
 
 ## Start here

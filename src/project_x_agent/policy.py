@@ -22,7 +22,7 @@ class SafetyPolicy:
             return PolicyDecision(
                 allowed=True,
                 code="risk_level_allowed",
-                reason=f"{task.risk_level.value} risk is allowed to reach the mock executor",
+                reason=f"{task.risk_level.value} risk is allowed to reach the configured executor",
             )
 
         if not task.authorization.is_explicit:
@@ -38,5 +38,5 @@ class SafetyPolicy:
         return PolicyDecision(
             allowed=True,
             code="explicit_authorization_present",
-            reason="explicit authorization marker is complete; V1 still uses only mock execution",
+            reason="explicit authorization marker is complete",
         )

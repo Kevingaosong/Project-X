@@ -20,6 +20,7 @@ class RunSummary:
     blocked: int = 0
     invalid: int = 0
     skipped: int = 0
+    task_ids: tuple[str, ...] = ()
 
 
 class ProjectXAgent:
@@ -32,8 +33,6 @@ class ProjectXAgent:
         publisher: ResultPublisher,
         policy: SafetyPolicy | None = None,
     ) -> None:
-        if not executor.is_mock or not publisher.is_mock:
-            raise ValueError("Phase 3 V1 accepts mock executor and publisher adapters only")
         self.tasks_dir = tasks_dir
         self.results_dir = results_dir
         self.executor = executor
@@ -41,7 +40,7 @@ class ProjectXAgent:
         self.policy = policy or SafetyPolicy()
         self.store = ResultStore(results_dir)
 
-    def scan_once(self) -> RunSummary:
+    def scan_once(self, *, max_tasks: int | None = None) -> RunSummary:
         self.tasks_dir.mkdir(parents=True, exist_ok=True)
         self.results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -53,6 +52,8 @@ class ProjectXAgent:
             "invalid": 0,
             "skipped": 0,
         }
+        task_ids: list[str] = []
+        processed = 0
 
         for source_path in sorted(self.tasks_dir.glob("*.json")):
             counters["discovered"] += 1
@@ -65,6 +66,9 @@ class ProjectXAgent:
                     source_hash = "unavailable"
                 self.store.write_invalid(source_path.name, source_hash, str(exc))
                 counters["invalid"] += 1
+                processed += 1
+                if max_tasks is not None and processed >= max_tasks:
+                    break
                 continue
 
             if self.store.is_current(envelope.task.id, envelope.content_hash):
@@ -73,8 +77,12 @@ class ProjectXAgent:
 
             status = self._process(envelope)
             counters[status] += 1
+            task_ids.append(envelope.task.id)
+            processed += 1
+            if max_tasks is not None and processed >= max_tasks:
+                break
 
-        return RunSummary(**counters)
+        return RunSummary(**counters, task_ids=tuple(task_ids))
 
     def watch(self, *, interval_seconds: float, stop_event: Event | None = None) -> None:
         if interval_seconds < 5:
@@ -112,6 +120,8 @@ class ProjectXAgent:
                     "task_hash": envelope.content_hash,
                     "status": "blocked",
                     "risk_level": task.risk_level.value,
+                    "execution_mode": task.execution.mode.value,
+                    "write_paths": list(task.execution.write_paths),
                     "policy": asdict(decision),
                     "executor": self.executor.name,
                     "publisher": self.publisher.name,
@@ -139,6 +149,8 @@ class ProjectXAgent:
                     "task_hash": envelope.content_hash,
                     "status": outcome.status,
                     "risk_level": task.risk_level.value,
+                    "execution_mode": task.execution.mode.value,
+                    "write_paths": list(task.execution.write_paths),
                     "policy": asdict(decision),
                     "executor": self.executor.name,
                     "executor_is_mock": self.executor.is_mock,
@@ -161,6 +173,8 @@ class ProjectXAgent:
                     "task_hash": envelope.content_hash,
                     "status": "failed",
                     "risk_level": task.risk_level.value,
+                    "execution_mode": task.execution.mode.value,
+                    "write_paths": list(task.execution.write_paths),
                     "executor": self.executor.name,
                     "error_type": type(exc).__name__,
                     "started_at": started_at,

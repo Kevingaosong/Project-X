@@ -1,194 +1,102 @@
-# Project X Phase 3：Agent 最小闭环架构
+# Project X Phase 3.1：Git ↔ Codex 最小闭环
 
-## 1. 目标
+## 1. 目标与边界
 
-Phase 3 把 Project X 从“有文档和 Git 的仓库”推进到“有明确任务入口、风险闸门、执行接口、结果证据和发布接口的 Agent 骨架”。
+Phase 3.1 让 GitHub 成为任务入口，让 Mac mini 每 60 秒检查一次 `tasks/`，调用本机 Codex，把结果写入 `results/`，再自动提交并推送。
 
-第一版只证明控制流程，不连接真实业务：
-
-```text
-tasks/*.json
-    ↓ 扫描与校验
-安全策略闸门
-    ↓
-MockCodexExecutor
-    ↓
-results/<task-id>/
-    ↓
-MockGitPublisher
-```
-
-V1 不调用真实 Codex、不执行 Shell 命令、不访问网络、不连接飞书/IBKR/EnergyMo，也不会自动运行 Git 命令。
-
-## 2. 设计原则
-
-### 默认安全失败
-
-- `high` 和 `critical` 任务没有完整显式授权标记时只生成 `blocked` 结果。
-- 授权标记缺少批准人、时间或原因时仍视为未授权。
-- V1 即使看到完整授权，也只能进入 mock 执行器。
-- 执行器和发布器不是 mock 时，Agent 构造函数直接拒绝启动。
-
-### 任务是声明，不是脚本
-
-任务文件描述目标和风险，而不是携带可执行命令。V1 不支持 `command`、Shell 或任意插件字段。任务中的敏感命名字段会被拒绝，避免秘密通过 tasks/results/Git 扩散。
-
-### 结果是控制证据
-
-Agent 为每个任务保存：
-
-- 输入内容哈希，用于幂等判断；
-- 风险与策略决策；
-- 实际使用的执行器和发布器；
-- 是否为 mock；
-- 开始/结束时间；
-- 产物相对路径；
-- 结构化事件日志；
-- Git 发布意图及 mock 回执。
-
-日志不复制完整 objective，降低敏感信息在多处重复的风险。
-
-### 单次扫描优先
-
-默认命令只扫描一次，便于人工验证和外部调度。持续轮询必须显式使用 `--watch`，且最小间隔为 5 秒。Phase 3 不创建 launchd、cron 或 Codex 自动化，因此不会与现有控制入口发生新的调度冲突。
-
-## 3. 组件边界
-
-### Task model / loader
-
-`models.py` 负责 JSON 大小限制、UTF-8/Schema 校验、任务 ID 约束、风险枚举和敏感字段拒绝。任务源被封装为 `TaskEnvelope`，其中保存路径与 SHA-256 内容哈希。
-
-### Safety policy
-
-`policy.py` 只回答“任务能否进入执行器”，不执行动作。当前规则很小，后续可扩展为能力白名单、工作区边界、审批签名和适配器专属策略。
-
-### Executor interface
-
-`TaskExecutor` 是执行接口。V1 唯一实现 `MockCodexExecutor`，它只返回固定结果和 Markdown 产物。
-
-未来真实 Codex 适配器必须额外提供：
-
-- 工作目录白名单；
-- 命令/工具权限声明；
-- 超时和取消；
-- 标准输出脱敏；
-- 产物清单；
-- 网络和外部写入能力证明。
-
-### Result store
-
-`ResultStore` 使用临时文件加原子替换写 JSON/Markdown，生命周期日志使用 JSONL 追加。所有 artifact 路径必须留在当前任务结果目录内。
-
-### Publisher interface
-
-`ResultPublisher` 是 Git 发布接口。V1 唯一实现 `MockGitPublisher`，只返回“本来会使用的提交信息”，不会运行 Git。
-
-未来真实 Git 发布器应：
-
-1. 只允许任务文件和对应结果目录进入暂存区；
-2. 提交前执行 secrets 扫描和 `git diff --check`；
-3. 验证当前分支、上游与远端；
-4. 使用互斥锁避免并发提交；
-5. push 后验证远端提交哈希；
-6. 拒绝 force push、历史改写和不相关文件。
-
-## 4. 目录结构
+这一阶段只接通仓库内闭环，不连接飞书、IBKR、EnergyMo、OpenClaw、交易、支付、生产 API 或外发消息，也不修改现有自动化服务。
 
 ```text
-.
-├── docs/
-│   └── project-x-agent-architecture.md
-├── tasks/
-│   ├── README.md
-│   └── *.json
-├── results/
-│   ├── README.md
-│   └── <task-id>/
-│       ├── result.json
-│       ├── execution.jsonl
-│       ├── publication.json
-│       └── mock-output.md
-├── scripts/
-│   └── run-agent.py
-├── src/project_x_agent/
-└── tests/
+GitHub tasks/*.json
+  ↓ fetch + fast-forward only
+主仓库（必须干净）
+  ↓ detached temporary worktree
+风险策略 → Codex read-only / workspace-write sandbox
+  ↓ only explicitly allowed paths
+越界检查 → secrets 扫描 → diff 检查
+  ↓
+commit → push → remote SHA verification
 ```
 
-## 5. 状态与幂等
+## 2. 调度模型
 
-任务身份由 `id` 和文件内容哈希共同确定。
+`com.projectx.agent` 使用 launchd 的 `StartInterval=60`。每次唤醒只运行一个短生命周期进程，一次最多处理一个新任务；不使用永久驻留循环。非阻塞文件锁避免两个运行重叠。
 
-- 同一任务 ID、同一哈希已有终态结果：跳过。
-- 同一任务 ID 的文件内容改变：视为新尝试，再次评估策略。
-- 高风险任务可以先产生 `blocked` 结果，补齐显式授权后再次评估。
-- 需要保留每次尝试的完整历史时，后续版本应引入 attempt ID；V1 以 JSONL 日志保留事件线索，`result.json` 表示最新结果。
+服务使用独立 label 和独立日志目录，不加载、不停止、也不修改现有 OpenClaw 或量化 LaunchAgent。
 
-## 6. 为什么不在 V1 直接调用 Codex 和 Git
+## 3. Git 同步
 
-当前 Mac mini 已存在 Codex 自动化、一个已加载的量化 LaunchAgent、OpenClaw 历史入口和交易代码。若 V1 同时接入真实 Codex 与真实 Git 自动发布，会在以下能力尚未完成前扩大风险：
+每次运行开始时要求主工作树干净且位于 `main`：
 
-- 唯一调度器没有确定；
-- 任务审批标记尚未签名或绑定身份；
-- 没有完整的工作区和工具权限控制；
-- 没有 secrets 后端；
-- 没有并发锁和失败恢复；
-- 没有自动验收器。
+1. `fetch origin main`；
+2. 本地落后时只允许 fast-forward；
+3. 本地和远端分叉时停止，等待人工检查；
+4. 不使用 force push，不重写远端历史；
+5. push 后重新 fetch，并比较本地和远端 commit SHA。
 
-因此 V1 先冻结接口，用测试证明状态机和风险闸门，再逐个替换 mock。
+任务运行期间若手机端又推送了提交，发布器会在本地任务提交后基于最新远端进行普通 rebase；冲突时失败关闭，不自动解决业务冲突。
 
-## 7. 后续扩展路线
+## 4. 隔离执行
 
-### 优先级、依赖关系与自动验收
+真实 Codex 不直接在主工作树运行。协调器为当前 HEAD 建立一次性 detached worktree，任务完成后只把通过验证的文件复制回主仓库，再移除临时工作区。
 
-下一版可以在不改变执行器接口的情况下增加：
+任务有两种模式：
 
-- `priority` 与公平队列；
-- `depends_on` 与有向无环图校验；
-- attempt ID 和重试预算；
-- acceptance checks 与独立 verifier；
-- 任务超时、租约和并发互斥；
-- 签名批准记录，替代单纯布尔标记。
+- `analysis`：默认模式，Codex 使用只读沙箱，只把最终回答和执行事件保存到结果目录。
+- `workspace-write`：必须显式列出 `execution.write_paths`，Codex 使用 workspace-write 沙箱。
 
-### 多 Agent
+无论任务提示怎么写，控制层都会独立复核 Git 变更。超出白名单的修改不会进入主仓库。删除、重命名、复制、二进制文件和超过 1 MB 的文件在本阶段一律阻断。
 
-控制层保持单一，多个 Agent 作为受限 worker 注册能力：
+以下控制范围不能由普通任务自我修改：`.git`、`.github`、`.codex`、`.ssh`、`tasks/`、`results/`、`work/`、`scripts/`、`tests/`、`src/project_x_agent/`、`.gitignore`、`pyproject.toml`。
 
-- planner：拆解目标，不执行外部动作；
-- coder：仅在指定 Git 工作区修改代码；
-- verifier：只读测试与验收；
-- publisher：只允许提交已验收路径；
-- domain adapter：飞书、IBKR、EnergyMo 等专域能力。
+## 5. Codex 与凭据
 
-调度器根据能力、风险等级和租约分发任务；worker 不能自行升级权限或调用另一高权限 worker。
+`CodexCliExecutor` 使用 ChatGPT 应用内置的 Codex CLI 和已有本机登录态；不创建 `OPENAI_API_KEY`，不读取或复制认证文件内容。每次会话使用 `--ephemeral`，并忽略用户级运行配置，减少意外插件、hook 或额外能力进入无人值守任务。
 
-### 飞书适配器
+固定安全提示禁止：访问工作树外文件、读取 secrets、使用外部网络和生产 API、交易、支付、消息外发、Git 发布、系统调度及持久进程。提示不是唯一防线；临时 worktree、沙箱、路径验证和 Git 发布检查共同构成执行边界。
 
-先实现白名单对象的只读获取，再实现“草稿写入 → 差异展示 → 人工批准 → 写后读回验证”。消息发送、任务创建和 CRM 更新分别定义权限，不共享笼统的“飞书可写”权限。
+## 6. 风险与审批
 
-### IBKR 适配器
+`low`、`medium` 可进入相应沙箱。`high`、`critical` 必须同时包含 `authorization.execute=true`、`approved_by`、带时区的 `approved_at` 和 `reason`。
 
-保持六级隔离：离线数据、行情读取、账户只读、建议生成、纸面订单、真实订单。早期只接离线/只读；真实订单必须使用独立项目、独立凭据、订单上限和即时人工确认，不能依靠任务 JSON 中的普通授权字段。
+该 JSON 标记当前不是密码学签名，只适合仓库内受限任务，不能作为真实资金、生产写入或外发消息的充分授权。即使标记完整，也不能扩大写路径或越过本阶段关闭的能力。
 
-### EnergyMo 适配器
+## 7. 结果与审计
 
-先接本地资料索引、报告生成和 CRM 测试数据。对外发送、发布、生产 CRM/飞书写入必须经过目标对象白名单和写前差异审批。
+每个任务在 `results/<task-id>/` 记录输入 SHA-256、风险与策略决策、execution mode 与写路径、执行器、时间、Codex 最终回答、JSONL 生命周期日志和发布排队回执。
 
-### Secrets 与身份
+发布前再次扫描常见私钥、GitHub/OpenAI token、AWS access key 和 Bearer token 模式。日志做长度限制和敏感模式替换。检测信息只报告“疑似秘密存在”和内容摘要，不输出原值。
 
-任务只保存 secret reference，不保存秘密值。未来由独立凭据适配器按任务身份、能力和时间窗口解析，日志只记录引用 ID 与授权结果。
+## 8. 失败恢复
 
-## 8. 当前运行方式
+- 主工作树不干净：停止同步，避免覆盖人工修改。
+- 远端分叉或 rebase 冲突：停止并等待人工检查。
+- Codex 超时或失败：写失败结果，不扩大权限重试。
+- 越界修改或疑似 secret：临时工作树被丢弃，不复制、不提交。
+- push 验证失败：返回非零状态，后续运行不会 force push。
 
-无需安装依赖：
+launchd 标准输出和错误日志位于被 Git 忽略的 `work/launchd/`。
+
+## 9. 后续扩展
+
+下一阶段应依次增加任务 attempt ID 与重试预算、优先级和依赖 DAG、独立 verifier、批准签名、健康状态通知。多 Agent 应保持单一控制层，把 planner、coder、verifier、publisher 和领域适配器分为不同能力。
+
+飞书先做只读和草稿；IBKR 继续严格区分离线数据、行情、账户只读、建议、纸面订单、真实订单；EnergyMo 先接本地资料和测试数据。任何生产写入都要另建适配器级审批，不能复用普通任务标记。
+
+## 10. 手动运行
+
+Mock 骨架：
 
 ```text
 python3 scripts/run-agent.py
 ```
 
-显式持续轮询：
+真实同步周期：
 
 ```text
-python3 scripts/run-agent.py --watch --interval 60
+python3 scripts/run-sync-worker.py \
+  --repo-root /Users/kevin/Documents/Codex/2026-08-26/referenced-chatgpt-conversation-this-is-an \
+  --codex-binary /Applications/ChatGPT.app/Contents/Resources/codex
 ```
 
-两种方式当前都只使用 mock。Phase 3 完成时不启动常驻进程、不创建系统调度配置。
+定时配置的版本化来源是 `config/com.projectx.agent.plist`，安装位置是 `~/Library/LaunchAgents/com.projectx.agent.plist`。
