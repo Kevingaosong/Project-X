@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "demo-readonly-001",
+  "title": "Demonstrate the mock loop",
+  "objective": "Produce a deterministic mock result without external side effects.",
+  "risk_level": "low",
+  "created_at": "2026-08-26T15:00:00+08:00",
+  "authorization": {
+    "execute": false
+  },
+  "metadata": {
+    "source": "example"
+  }
+}
