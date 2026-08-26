@@ -1,0 +1,26 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example
+
+# Temporary files, logs, and caches
+*.log
+*.tmp
+*.temp
+*.cache
+tmp/
+temp/
+.cache/
+work/
