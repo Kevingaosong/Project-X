@@ -70,7 +70,9 @@ class CodexCliExecutor:
         self.timeout_seconds = timeout_seconds
 
     def execute(self, task: Task) -> ExecutionOutcome:
-        sandbox = task.execution.mode.value
+        sandbox = (
+            "read-only" if task.execution.mode.value == "analysis" else "workspace-write"
+        )
         allowed = ", ".join(task.execution.write_paths) or "none (read-only analysis)"
         prompt = (
             "You are a constrained Project X worker. Complete only the task below.\n"
@@ -122,7 +124,7 @@ class CodexCliExecutor:
         artifacts = (
             GeneratedArtifact("codex-final.md", stdout or "Codex returned no final message.\n"),
             GeneratedArtifact(
-                "codex-events.log",
+                "codex-events.txt",
                 stderr or "Codex CLI produced no diagnostic output.\n",
             ),
         )
