@@ -1,0 +1,13 @@
+{
+  "error_type": "RuntimeError",
+  "execution_mode": "analysis",
+  "executor": "codex-cli",
+  "finished_at": "2026-08-26T10:43:30.107945+00:00",
+  "risk_level": "low",
+  "schema_version": 1,
+  "started_at": "2026-08-26T10:43:30.076758+00:00",
+  "status": "failed",
+  "task_hash": "36f108c53e882c3f5ff7cf6c3b59d147a503d4f03fb1d210511e5f3c63203593",
+  "task_id": "phase-3-1-launchd-smoke",
+  "write_paths": []
+}

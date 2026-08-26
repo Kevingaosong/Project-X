@@ -1,0 +1,7 @@
+{
+  "adapter": "validated-git-queue",
+  "commit_message": "Record Project X task phase-3-1-launchd-smoke",
+  "detail": "The outer worker will validate paths, scan for secrets, commit, push, and verify.",
+  "pushed": false,
+  "status": "queued"
+}
