@@ -1,12 +1,12 @@
 {
   "artifacts": [
     "phase-3-1-launchd-smoke/codex-final.md",
-    "phase-3-1-launchd-smoke/codex-events.log"
+    "phase-3-1-launchd-smoke/codex-events.txt"
   ],
   "execution_mode": "analysis",
   "executor": "codex-cli",
   "executor_is_mock": false,
-  "finished_at": "2026-08-26T10:47:28.617382+00:00",
+  "finished_at": "2026-08-26T10:50:13.990051+00:00",
   "policy": {
     "allowed": true,
     "code": "risk_level_allowed",
@@ -16,10 +16,10 @@
   "publisher_is_mock": false,
   "risk_level": "low",
   "schema_version": 1,
-  "started_at": "2026-08-26T10:47:28.588329+00:00",
-  "status": "failed",
-  "summary": "Codex CLI exited with status 2.",
-  "task_hash": "bd3c93916d9d330375d511eceb76da6f8e630bc316d3fd1d3b88b46e6015406d",
+  "started_at": "2026-08-26T10:50:02.503110+00:00",
+  "status": "completed",
+  "summary": "Codex CLI completed inside the task worktree sandbox.",
+  "task_hash": "adc94fa34af978da9537e4d0322c8e132d014279f2d315521117c301a9fc7362",
   "task_id": "phase-3-1-launchd-smoke",
   "write_paths": []
 }
