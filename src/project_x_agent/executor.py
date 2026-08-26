@@ -124,7 +124,11 @@ class CodexCliExecutor:
             GeneratedArtifact("codex-events.log", stderr),
         )
         if completed.returncode != 0:
-            raise RuntimeError(f"Codex CLI exited with status {completed.returncode}")
+            return ExecutionOutcome(
+                status="failed",
+                summary=f"Codex CLI exited with status {completed.returncode}.",
+                artifacts=artifacts,
+            )
         return ExecutionOutcome(
             status="completed",
             summary="Codex CLI completed inside the task worktree sandbox.",

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "phase-3-1-launchd-smoke",
   "title": "Verify the Phase 3.1 scheduled control loop",
-  "objective": "Return a brief confirmation that this read-only task was received by Codex. Do not inspect repository files and do not run commands.",
+  "objective": "Return a brief confirmation that this read-only retry task was received by Codex. Do not inspect repository files and do not run commands.",
   "risk_level": "low",
   "created_at": "2026-08-26T18:45:00+08:00",
   "authorization": {

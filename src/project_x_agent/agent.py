@@ -162,7 +162,8 @@ class ProjectXAgent:
                     "finished_at": utc_now(),
                 },
             )
-            self.store.append_event(task.id, "executor.completed", status=outcome.status)
+            event = "executor.completed" if outcome.status == "completed" else "executor.failed"
+            self.store.append_event(task.id, event, status=outcome.status)
         except Exception as exc:  # Fail closed and record the adapter error.
             self.store.write_json(
                 task.id,
@@ -186,7 +187,7 @@ class ProjectXAgent:
             return "failed"
 
         self._publish(envelope, task.id)
-        return "completed"
+        return "completed" if outcome.status == "completed" else "failed"
 
     def _publish(self, envelope: TaskEnvelope, task_id: str) -> None:
         commit_message = f"Record Project X task {task_id}"
